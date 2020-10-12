@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇小游戏</title>
+</head>
+<style>
+    *{
+        margin: 0;
+        padding: 0;
+    }
+    #main{
+      margin: 100px; 
+    }
+    .btn{
+        width: 100px;
+        height: 40px;
+    }
+    h1{
+        margin:20px auto;
+    }
+    .sp{
+        margin: auto 50px;
+        font-size: 23px;
+        font-weight: bold;
+    }
+    #gnum{
+        color: red;
+        margin: 10px;
+    }
+</style>
+<body>    
+    <div id="main">
+        <h1>贪吃蛇    --学习作品</h1>
+        <input type="button" value="开始游戏" class="btn" onclick="onclik()" id="kaiguan">
+        <span class="sp">第<span id="gnum">1</span>关</span>
+    </div>
+
+
+
+    <script type="text/javascript"> 
+       /* 
+        地图对象的构建方法
+        atom  原子大小（正方形的，所以宽和高一样）
+        xnum  横向原子的个数  （例如
+         80个  那么地图的宽度就该为  80 * atom
+        ）
+        ynum  y轴的个数
+
+        */
+        var main = document.getElementById("main");//获取要显示的地方
+
+
+        var showcanvas = false;//是否开启画布格子
+
+
+        function Map(atom,xnum,ynum){
+            this.atom = atom;
+            this.xnum = xnum;
+            this.ynum = ynum;
+
+            this.canvas = null;//创建画布
+            //创建画布的方法
+            this.maphuabu = function(){
+                this.canvas = document.createElement("div");//创建一个div
+                this.canvas.style.cssText="position:relative;top:40px;border:1px solid darkred;background:#fafafa";
+                //给div添加一些属性
+                this.canvas.style.width = this.xnum * this.atom +"px";//设置画布的宽（也就是x轴原子的数量 * 个数）
+                this.canvas.style.height = this.ynum * this.atom +"px";//设置画布的高（也就是x轴原子的数量 * 个数）
+                main.appendChild(this.canvas);//追加子元素到main中
+
+
+                //这是为了便于调试，让每个原子都显示出来，操作原子的（当然也可以不让他显示）
+                if(showcanvas){
+                    for(var y=0;y<ynum;y++){
+                        // 这层控制 y轴
+                        for (var x = 0; x < xnum; x++) {
+                            //这层for循环的意思是将 x轴 上的全部原子显示出来
+                            var a = document.createElement("div");//创建原子的容器
+                            a.style.cssText = "border:1px solid yellow;background:green";//设置原子的属性
+                            a.style.width = this.atom + "px";//获取原子的宽度，并将其添加至属性
+                            a.style.height = this.atom + "px";//获取原子的高度，并将其添加至属性
+                            this.canvas.appendChild(a);//将 a 添加至 canvas （也就是画布）中，实现显示
+                            a.style.position = "absolute";
+                            a.style.left = x * this.atom + "px";//每遍历一个原子，他距离左边的距离就加一个原子的宽度
+                            a.style.top = y * this.atom + "px";
+                        }
+                    }
+                }
+            }
+
+        };
+
+
+        //开始创建食物对象
+        //将地图传入食物对象中，以便于获取原子大小和显示的位置关系
+        function Food(map){
+           this.width = map.atom;
+           this.height = map.atom;
+           /*
+            上面那个代码意思就是将原子作为食物
+           */
+          this.bgcolor="rgb("+Math.floor(Math.random() * 200)+","+Math.floor(Math.random() * 200)+","+Math.floor(Math.random() * 200)+")";
+          //这一步就是把食物（原子）的颜色设为随机颜色
+          this.x = Math.floor(Math.random() * map.xnum);
+          this.y = Math.floor(Math.random() * map.ynum);
+          //这一步就是随机生成 x，y 的位置在第几个方格 （ 原子）上
+        //   以上就是食物的基本属性、
+          this.flag = document.createElement('div');//将要显示的食物渲染出来
+          this.flag.style.width = this.width + "px";
+          this.flag.style.height = this.height + "px";
+          this.flag.style.background = this.bgcolor;
+          this.flag.style.borderRadius = "50%";
+          this.flag.style.position = "absolute";
+          this.flag.style.left = this.x * this.width + "px";
+          this.flag.style.top = this.y * this.height + "px";
+
+
+          //以上操作为食物的样式
+
+          map.canvas.appendChild(this.flag);//同样将食物添加到画布上
+        };
+
+
+        //创建贪吃蛇
+        function she(map){
+        this.width = map.atom;
+        this.height = map.atom;
+        //以上创建了蛇的宽高
+
+        this.direction="right";
+        //规定了蛇的默认运动方向（dircrtion  设置文本的默认方向）
+        
+
+
+        //这里创建了蛇
+        this.body = [
+            {x:2,y:0},//蛇的头，在x轴上第三个原子的位置（默认下标为0）  后面数组  []  内的全为下标
+            {x:1,y:0},//蛇的身子
+            {x:0,y:0},//蛇的尾巴
+            ];
+
+        //显示蛇
+        //因为蛇是由三部分组成的，所以要遍历蛇
+        this.display = function(){
+            for(var i=0; i<this.body.length;i++){
+                var s = document.createElement('div');
+                if(this.body[i].x != null){//当吃到食物时，x==null时，不能新建，否则会在0，0处生成一个
+                //将节点保存到动态变量中，以便后续的删除操作
+                this.body[i].flag = s;
+                //flag 它的中文意思是“旗帜，或旗标”
+                //，FLAG是电脑程序中用于记录程序状态的一种标记，
+                //FLAG只有1（立起）和0（倒下）两个数值，它可以用来帮助程序做复杂条件的判断。
+                //但其实呢，flag是程序员自己定义的变量，作为一个标记（志），标记当前的进程，或者标记某种状态，
+                //用来控制程序的流向。只是因为在实际使用中方便好记才这么定义的。因为程序要实现的功能很多，
+                //为了区分各个程序段实现了什么功能就用标志位的值，然后使用if语句判断标志位的值，进入相应的程序实现相应的功能，当然flag的值由你来决定。
+
+                //设置蛇的样式
+                s.style.width = this.width + 'px';
+                s.style.height = this.height +'px';
+                s.style.backgroundColor = "rgb("+Math.floor(Math.random() * 200)+","+Math.floor(Math.random() * 200)+","+Math.floor(Math.random() * 200)+")";
+
+               //设置位置
+               s.style.position = "absolute";
+               s.style.borderRadius = "50%";
+               s.style.left = this.body[i].x * this.width+ "px";
+               s.style.top = this.body[i].y * this.height + 'px';
+               
+               
+                //在地图对象的画布上把蛇渲染初来
+                map.canvas.appendChild(s);
+
+            }
+        }
+        };
+        //蛇运动
+
+
+        // this.run = function(){
+        //     for(var i=0;i<this.body.length;i++){
+        //         this.body[i].x +=1;
+              
+        this.run = function(){
+               for(var i=this.body.length-1;i>0;i--){
+                  this.body[i].x = this.body[i-1].x;
+                  this.body[i].y = this.body[i-1].y;
+               };
+
+
+               //上面我设置了默认的方向
+               //根据方向，蛇头改变，其他部件跟着
+               switch(this.direction){
+                   case "left":this.body[0].x -=1; break;
+                   case "right":this.body[0].x +=1; break;
+                   case "up":this.body[0].y -=1; break;
+                   case "down" :this.body[0].y +=1; break;
+
+               };
+
+            //因为蛇在运动的时候吃掉食物，所以我将吃食物的函数放在了运动函数内
+            //当蛇头的x和y坐标对应上食物的坐标时，将蛇的数组内添加一个字段、
+            if(this.body[0].x == food.x && this.body[0].y == food.y){
+                //蛇加一节根据蛇的最后节点来定
+                this.body.push({x:null,y:null,flag:null});
+                //判断蛇的长度级别
+                if(this.body.length > l.slength){
+                    l.set();
+                };
+
+                //吃掉食物后，应当把地图上的食物删除掉，然后重新调用函数对象，生成新的食物
+                map.canvas.removeChild(food.flag);
+
+                food = new Food(map);
+
+            };
+
+
+
+            //设置蛇在运动时的规则
+
+            //判断是否撞墙   只要看蛇头
+            if(this.body[0].x<0 || this.body[0].x > map.xnum-1 || this.body[0].y<0 ||this.body[0].y>map.ynum-1){
+                clearInterval(timer);
+                /*
+                   当蛇头也就是  body[0]的 x轴小于0，0点时 撞左墙死亡，蛇头大于map上x轴最大数时撞右墙死亡
+
+
+                   为什么时   xunm-1     因为在这个地方我们要和  蛇头对应上  蛇头我们取得为数组的下标  下标从0开始计算  
+                   所以相应的  map.xnum  也应该取得他的下标  所以-1
+                */
+                alert("gameOver!!!")
+
+
+                restart(map,this);
+
+
+                return false;
+            };
+
+
+
+            //判断是否撞到自己
+            //蛇只有四节的时候永远也不会撞到自己，所以为了减少程序处理的速度，我让i初始化为4
+            for(var i=4;i<this.body.length;i++){
+                //判断蛇头的 x y坐标是否与身子上的x y坐标重合 如果重合  则为撞到自己
+                if(this.body[0].x == this.body[i].x && this.body[0].y == this.body[i].y){
+                    clearInterval(timer);
+                /*
+                   当蛇头也就是  body[0]的 x轴小于0，0点时 撞左墙死亡，蛇头大于map上x轴最大数时撞右墙死亡
+
+
+                   为什么时   xunm-1     因为在这个地方我们要和  蛇头对应上  蛇头我们取得为数组的下标  下标从0开始计算  
+                   所以相应的  map.xnum  也应该取得他的下标  所以-1
+                */
+                alert("gameOver!!!")
+
+
+                restart(map,this);
+
+
+
+
+                return false;
+
+                }
+
+
+            };
+
+
+
+            //    
+            //    this.body[0].x+=1;
+
+                for(var i=0;i<this.body.length;i++){
+                    if(this.body[i].flag !=null){//当吃到食物，flag为null，时，不能删除
+                        map.canvas.removeChild(this.body[i].flag)
+                    }
+                };
+                this.display();
+
+        };
+           
+    };
+
+        // };
+
+        
+
+
+        //重新开始游戏
+        // 因为上面的撞墙死亡和撞自己死亡都会用到  重新开始游戏   所以我们要把这个事件封装一下
+        function restart(map,she){
+            //清除现在已有的蛇\
+
+            //通过遍历蛇的数组，把蛇的每一项清除掉
+            for(var i=0;i<she.body.length;i++){
+                map.canvas.removeChild(she.body[i].flag)
+            };
+
+            //初始化蛇
+            she.body = [
+            {x:2,y:0},//蛇的头，在x轴上第三个原子的位置（默认下标为0）  后面数组  []  内的全为下标
+            {x:1,y:0},//蛇的身子
+            {x:0,y:0},//蛇的尾巴
+            ];
+
+
+
+            //初始化方向
+            she.direction = "right";
+            //重新渲染蛇
+            she.display();
+
+
+            //把食物也要重新清除  并生成
+            map.canvas.removeChild(food.flag);
+            food = new Food(map);
+
+            //重置按钮
+            window.document.getElementById("kaiguan").value = "重新开始";
+
+        };
+
+
+
+        //设置级别对象
+        function level(){
+            //第几级别
+            this.num = 1;
+            //速度为多少  毫秒  每升一级  相应的加快速度
+            this.sudu = 300;
+            //我们需要一个判断  一个判断蛇通关的  他的长度
+            this.slength = 8;
+
+            //升级之后的
+            this.set = function(){
+                this.num++;
+                if(this.sudu<=50){
+                    this.sudu = 50;
+                }else{
+                    this.sudu -= 50;
+                };
+
+                this.slength +=5;// 每一关  蛇的速度加快50毫秒  需要多吃10个十五
+
+
+                this.display();
+                start();
+            }
+            this.display=function(){
+                document.getElementById('gnum').innerHTML = this.num;
+            }
+        }
+
+
+        var l = new level();
+        l.display();
+
+
+        var map = new Map(20,40,20);//传参（指定画布大小）
+        map.maphuabu();//调用画布
+        var food = new Food(map);//调用随机生成食物
+        var she = new she(map);//调用蛇对象，生成蛇
+        she.display();
+
+
+                       //获取键盘事件onkeydown
+
+        window.onkeydown = function(e)
+            {
+                   var event = e || window.event;
+
+                   //打印键盘对应的数字码
+                //    console.log(event.keyCode)
+
+                switch(event.keyCode){
+                    case 38:
+                    if(she.direction !="down"){
+                    she.direction = "up";
+                    };
+                    break;
+                    case 40:
+                    if(she.direction !="up"){
+                    she.direction = "down";
+                    };
+                    break;
+                    case 37:
+                    if(she.direction !="right"){
+                    she.direction = "left";
+                    };
+                    break;
+                    case 39:
+                    if(she.direction !="left"){
+                    she.direction = "right";
+                    };
+                    break;
+                }
+            };
+        function start(){
+            clearInterval(timer);
+                timer=setInterval(function(){
+                    she.run();
+
+                },l.sudu);
+        };
+
+
+         var timer;
+         var pn=1 ; //判断按钮是否被点击(这里我通过获取单击的次数判断显示的文字)
+         function onclik(){  if(document.getElementById("kaiguan").onclick){
+             if(pn%2==1){
+                document.getElementById("kaiguan").value="暂停游戏"
+               start();
+                //当游戏开始执行计时器，一开始清除计时器是为了防止多个计时器冲突
+
+             }else{
+                document.getElementById("kaiguan").value="开始游戏" 
+                clearInterval(timer);
+             };
+          pn++;
+
+        }
+         }
+    </script>
+
+
+
+</body>
+</html>
